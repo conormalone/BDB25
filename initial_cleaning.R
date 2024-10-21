@@ -36,8 +36,9 @@ player_play_clean <- player_play %>% select(c(gameId,playId,nflId, hadPassRecept
 dataframe <- merge(play_track, player_play_clean, how = "left",on = c(gameId, playId, nflId))
 
 #I always make comb_id, giving each play a unique ID
-dataframe$comb_id <- paste0(as.character(dataframe$gameId)," ", as.character(dataframe$playId))
-dataframe$comb_id <- as.factor(dataframe$comb_id)
+dataframe$comb_id <- as.factor(paste0(as.character(dataframe$gameId)," ", as.character(dataframe$playId)))
+plays$comb_id <- as.factor(paste0(as.character(plays$gameId)," ", as.character(plays$playId)))
+player_play$comb_id <- as.factor(paste0(as.character(player_play$gameId)," ", as.character(player_play$playId)))
 dataframe$gameId <- as.factor(dataframe$gameId)
 dataframe$playId <- as.factor(dataframe$playId)
 dataframe$event <- as.factor(dataframe$event)
@@ -73,5 +74,25 @@ shift_dir <- start_shift %>% merge(., end_shift, by=c("comb_id","nflId")) %>% mu
 #feature2
 #target metrics to rank players by most popular (HMM starts with most pop)
 #import games to get week counts
-games <-read.csv("games.csv")
+games <-read.csv("games.csv") %>% select(c(gameId,week))
+plays <- plays %>% merge(.,games, by="gameId")
+just_targets <- player_play %>% filter(wasTargettedReceiver==1) %>% select(c(comb_id, nflId))
+target_sum_df <- plays %>% select(c(comb_id,week, gameId,playId,possessionTeam)) %>% merge(.,just_targets, by = "comb_id")
 
+#loop to keep tabs of target count after each play
+track_player_targets <- function(data) {
+
+  data <- data %>% arrange(week, gameId, playId)
+  
+  # Create a new column to track targets per player up to the current playId
+  data <- data %>%
+    group_by(possessionTeam, nflId) %>%
+    mutate(targets_to_now = row_number()) %>%
+    ungroup()
+  
+  return(data)
+}
+
+df_targetted <- track_player_targets(target_sum_df)
+df_targetted$targets_to_now <- df_targetted$targets_to_now-1
+#next add ranking function to get wr1 -> wr6 for each play based on targets to date
