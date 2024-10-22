@@ -96,3 +96,31 @@ track_player_targets <- function(data) {
 df_targetted <- track_player_targets(target_sum_df)
 df_targetted$targets_to_now <- df_targetted$targets_to_now-1
 #next add ranking function to get wr1 -> wr6 for each play based on targets to date
+rank_wr_players <- function(data, nflIds, posTeam, week, gameId, playId) {
+  # Filter the data for the specific week, gameId, and playId
+  filtered_data <- data %>%
+    filter(week == week, gameId == gameId, playId <= playId, nflId %in% nflIds, posTeam == posTeam)
+  
+  # Select the most recent play for each player, if they exist
+  filtered_data <- filtered_data %>%
+    group_by(nflId) %>%
+    filter(playId == max(playId, na.rm = TRUE)) %>%
+    ungroup()
+  
+  # Create a dataframe of all provided nflIds, defaulting appearances_to_date to 0 if missing
+  all_players <- data.frame(nflId = nflIds) %>%
+    left_join(filtered_data, by = "nflId") %>%
+    mutate(targets_to_now = ifelse(is.na(targets_to_now), 0, targets_to_now))
+  
+  # Rank players by appearances_to_date (descending order)
+  ranked_players <- all_players %>%
+    arrange(desc(targets_to_now)) %>%
+    mutate(wr_rank = paste0("wr", row_number())) %>%
+    select(nflId, targets_to_now, wr_rank)
+  
+  return(ranked_players)
+}
+#test it
+nflIds <- c(42489, 47857, 52494, 52536, 19191)
+ranked_wr <- rank_wr_players(df_targetted, nflIds, posTeam="BUF",week = 5, gameId = "2022090800", playId = 236)
+ranked_wr
