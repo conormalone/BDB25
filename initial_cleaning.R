@@ -124,3 +124,11 @@ rank_wr_players <- function(data, nflIds, posTeam, week, gameId, playId) {
 nflIds <- c(42489, 47857, 52494, 52536, 19191)
 ranked_wr <- rank_wr_players(df_targetted, nflIds, posTeam="BUF",week = 5, gameId = "2022090800", playId = 236)
 ranked_wr
+
+#highlight checkdown plays
+players <- read.csv("players.csv") %>% select(c(nflId,position))
+rb_te_player_plays <- player_play %>% merge(.,players) %>% 
+  filter((position=="TE" |position=="RB")&routeRan=="FLAT")
+rb_te_player_plays 
+#next step
+#pull components together
