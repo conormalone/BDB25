@@ -43,8 +43,8 @@ dataframe$gameId <- as.factor(dataframe$gameId)
 dataframe$playId <- as.factor(dataframe$playId)
 dataframe$event <- as.factor(dataframe$event)
 dataframe$passResult <- as.factor(dataframe$passResult)
-#just pass or run pass option plays
-dataframe <- dataframe %>% filter((pff_runPassOption==1) | (passResult !=""))
+#just pass or run pass option plays, no sacks and not after the snap
+dataframe <- dataframe %>% filter((pff_runPassOption==1) | (passResult !="")| (passResult !="S")| (frameType !="AFTER_SNAP"))
 
 rm(list=c("play_track","play_clean","player_play_clean","tracking_clean"))
 #end preprocess
@@ -116,7 +116,7 @@ rank_wr_players <- function(data, nflIds, posTeam, week, gameId, playId) {
   ranked_players <- all_players %>%
     arrange(desc(targets_to_now)) %>%
     mutate(wr_rank = paste0("wr", row_number())) %>%
-    select(nflId, targets_to_now, wr_rank)
+    select(nflId, comb_id, targets_to_now, wr_rank)
   
   return(ranked_players)
 }
