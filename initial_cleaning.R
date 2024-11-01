@@ -26,6 +26,7 @@ pre_processing_function <- function(df_input){
   return(dataframe)
 }
 tracking_clean <-pre_processing_function(tracking_dirty)
+tracking_football <-tracking_clean %>% filter(displayName=="football")
 rm(tracking_dirty)
 #merge tracking and pff to attach roles to tracking
 play_clean <- plays %>% select(c(gameId,playId,possessionTeam, offenseFormation,receiverAlignment,passResult,playAction,pff_runPassOption,pff_passCoverage,pff_manZone))
@@ -37,6 +38,7 @@ dataframe <- merge(play_track, player_play_clean, how = "left",on = c(gameId, pl
 
 #I always make comb_id, giving each play a unique ID
 dataframe$comb_id <- as.factor(paste0(as.character(dataframe$gameId)," ", as.character(dataframe$playId)))
+tracking_football$comb_id <- as.factor(paste0(as.character(tracking_football$gameId)," ", as.character(tracking_football$playId)))
 plays$comb_id <- as.factor(paste0(as.character(plays$gameId)," ", as.character(plays$playId)))
 player_play$comb_id <- as.factor(paste0(as.character(player_play$gameId)," ", as.character(player_play$playId)))
 dataframe$gameId <- as.factor(dataframe$gameId)
@@ -109,5 +111,59 @@ players <- read.csv("players.csv") %>% select(c(nflId,position))
 rb_te_player_plays <- player_play %>% merge(.,players) %>% 
   filter((position=="TE" |position=="RB")&routeRan=="FLAT")
 rb_te_player_plays 
+#############
+#continous shifter location
+# Filter data for players in motion or shift
+movers_and_shakers <- dataframe %>%
+  filter(inMotionAtBallSnap == 1 | shiftSinceLineset == 1 | motionSinceLineset == 1)
+
+# Get unique plays with motion and shift events
+plays_with_motion <- dataframe %>% filter(inMotionAtBallSnap == 1) %>% select(c(comb_id, nflId)) %>% unique()
+plays_with_shift <- dataframe %>% filter(shiftSinceLineset == 1) %>% select(c(comb_id, nflId)) %>% unique()
+
+# Filter tracking data for only players involved in motion or shift
+just_mim_tracking <- dataframe %>% filter(comb_id %in% plays_with_motion$comb_id & nflId %in% plays_with_motion$nflId)
+just_shift_tracking <- dataframe %>% filter(comb_id %in% plays_with_shift$comb_id & nflId %in% plays_with_shift$nflId)
+
+# Extract football location for each frame to use as reference
+football_tracking <- tracking_football %>% 
+  select(comb_id, frameId, x_std, y_std) %>% 
+  rename(football_x = x_std, football_y = y_std)
+
+# Calculate frame-by-frame relative position for man in motion
+mim_relative_position <- just_mim_tracking %>%
+  left_join(football_tracking, by = c("comb_id", "frameId")) %>%
+  mutate(
+    x_diff = x_std - football_x,
+    y_diff = y_std - football_y
+  ) %>%
+  select(comb_id, frameId, nflId, x_diff, y_diff)
+
+# Calculate frame-by-frame relative position for players in shift
+shift_relative_position <- just_shift_tracking %>%
+  left_join(football_tracking, by = c("comb_id", "frameId")) %>%
+  mutate(
+    x_diff = x_std - football_x,
+    y_diff = y_std - football_y
+  ) %>%
+  select(comb_id, frameId, nflId, x_diff, y_diff)
+
+# Determine direction of travel for man in motion based on y_diff change over frames
+mim_direction <- mim_relative_position %>%
+  group_by(comb_id, nflId) %>%
+  arrange(frameId) %>%
+  mutate(y_shift = y_diff - lag(y_diff)) %>%
+  mutate(motion_dir = ifelse(y_shift > 0, "Right", ifelse(y_shift < 0, "Left", NA))) %>%
+  filter(!is.na(motion_dir)) %>%
+  ungroup()
+
+# Determine direction of travel for players in shift based on y_diff change over frames
+shift_direction <- shift_relative_position %>%
+  group_by(comb_id, nflId) %>%
+  arrange(frameId) %>%
+  mutate(y_shift = y_diff - lag(y_diff)) %>%
+  mutate(motion_dir = ifelse(y_shift > 0, "Right", ifelse(y_shift < 0, "Left", NA))) %>%
+  filter(!is.na(motion_dir)) %>%
+  ungroup()
 #next step
 #pull components together
