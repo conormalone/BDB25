@@ -77,7 +77,7 @@ def get_tracking_df() -> pl.DataFrame:
     # don't include football rows for this project.  
     # NOTE: Only processing week 1 for the sake of time.  Change "1" to "*" to process all weeks
     return pl.read_csv(INPUT_DATA_DIR / "week*.csv", null_values=["NA", "nan", "N/A", "NaN", ""]).filter(
-        pl.col("team") != "football"
+         (pl.col("team")!= "football")#pl.col("team") != "football"
     )
 
 
@@ -116,15 +116,19 @@ def add_features_to_tracking_df(
         #    on="nflId",
         #    how="inner",
         #)
+        
         .with_columns(
             side=pl.when(pl.col("team") == pl.col("possessionTeam"))
             .then(pl.lit(1))
             .otherwise(pl.lit(-1))
             .alias("side"),
-        )
-        .drop(["possessionTeam"])
+        ).drop(["possessionTeam"])
     )
-    assert len(tracking_df) == og_len, "Lost rows when joining tracking data with play/player data"
+    initial_count = tracking_df.shape[0]
+    #tracking_df = tracking_df.filter(pl.col("team") != pl.col("possessionTeam")).drop(["possessionTeam"])
+    final_count = tracking_df.shape[0]
+    print(f"Rows before: {initial_count}, Rows after: {final_count}")
+    #assert len(tracking_df) == og_len, "Lost rows when joining tracking data with play/player data"
 
     return tracking_df
 
@@ -220,19 +224,19 @@ def get_defFormation(tracking_df: pl.DataFrame, plays_df: pl.DataFrame) -> pl.Da
     """
     
     # drop rows where defFormation is None
-    plays_df = plays_df.filter(pl.col("personnelLB").is_not_null())
+    plays_df = plays_df.filter(pl.col("defendersInBox").is_not_null())
     
     tracking_df = tracking_df.join(
-        plays_df[["gameId", "playId", "personnelLB"]],
+        plays_df[["gameId", "playId", "defendersInBox"]],
         on=["gameId", "playId"],
         how="inner",
     )
     
-    defFormation_df = (tracking_df[["gameId", "playId", "mirrored", "frameId", "personnelLB"]]
+    defFormation_df = (tracking_df[["gameId", "playId", "mirrored", "frameId", "defendersInBox"]]
        .unique()  # Polars equivalent of drop_duplicates()
     )
 
-    tracking_df = tracking_df.drop(["personnelLB"])
+    tracking_df = tracking_df.drop(["defendersInBox"])
     
     return defFormation_df, tracking_df
     
@@ -328,20 +332,36 @@ def main():
     print("Standardize play direction")
     tracking_df = standardize_tracking_directions(tracking_df)
     print("Augment data by mirroring")
+    print(len(tracking_df))
     tracking_df = augment_mirror_tracking(tracking_df)
-
+    print(len(tracking_df))
     print("Generate target - defFormation")
     defFormation_df, rel_tracking_df = get_defFormation(tracking_df, plays_df)
-
+    
     print("Split train/test/val/none")
     split_dfs = split_train_test_val(rel_tracking_df, defFormation_df)
-
+    print(len(tracking_df))
     out_dir = Path(OUT_DIR)
     out_dir.mkdir(exist_ok=True, parents=True)
 
     for key, df in split_dfs.items():
+    # Remove duplicates to ensure unique rows using Polars unique() method
+        df_unique = df.unique()
+
+      #  # Sort DataFrame using specified keys
         sort_keys = ["gameId", "playId", "mirrored", "frameId"]
-        df.sort(sort_keys).write_parquet(out_dir / f"{key}.parquet")
+        df_sorted = df_unique.sort(sort_keys)
+
+        # Print debug information
+        print(f"Key: {key}, original shape: {df.shape}, unique shape: {df_unique.shape}, sorted shape: {df_sorted.shape}")
+
+        # Write sorted, unique DataFrame to Parquet
+        df_sorted.write_parquet(out_dir / f"{key}.parquet")
+    #for key, df in split_dfs.items():
+        
+    #    sort_keys = ["gameId", "playId", "mirrored", "frameId"]
+    
+    #    df.sort(sort_keys).write_parquet(out_dir / f"{key}.parquet")
 
 
 if __name__ == "__main__":

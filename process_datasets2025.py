@@ -30,14 +30,18 @@ PREPPED_DATA_DIR = Path(r'D:\NFL\BDB25\BDB25')
 DATASET_DIR = Path(r'D:\NFL\BDB25\BDB25')
 
 FORMATION_ENUM = {
-     0:0,
-    1:1,
-    2:2,
-    3:3,
-    4:4,
-    5:5,
-    6:6,
-    
+ 10.0: 0,
+ 1.0: 1,
+ 2.0: 2,
+ 3.0: 3,
+ 4.0: 4,
+ 5.0: 5,
+ 6.0: 6,
+ 7.0: 7,
+ 8.0: 8,
+ 9.0: 9,
+ 11.0: 10,
+ 
 }
 
 
@@ -170,7 +174,7 @@ class BDB2025_Dataset(Dataset):
             np.ndarray: Transformed target values as one-hot encoded array
         """
         # Create one-hot encoding with prefix
-        y = pd.get_dummies(tgt_df['personnelLB'], prefix='formation')
+        y = pd.get_dummies(tgt_df['defendersInBox'], prefix='formation')
 
         # Ensure all formation types are present
         expected_columns = [f"formation_{formation}" for formation in sorted(FORMATION_ENUM.keys())]
@@ -197,9 +201,10 @@ class BDB2025_Dataset(Dataset):
         Raises:
             AssertionError: If the output shape is not as expected
         """
+        #frame_df = frame_df[frame_df !=frame_df.possessionTeam]
         features = ["x", "y", "vx", "vy", "side"]
         x = frame_df[features].to_numpy(dtype=np.float32)
-        assert x.shape == (22, len(features)), f"Expected shape (22, {len(features)}), got {x.shape}"
+        assert x.shape == (11, len(features)), f"Expected shape (11, {len(features)}), got {x.shape}"
         return x
 
 
