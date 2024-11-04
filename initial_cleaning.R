@@ -134,19 +134,17 @@ football_tracking <- tracking_football %>%
 mim_relative_position <- just_mim_tracking %>%
   left_join(football_tracking, by = c("comb_id", "frameId")) %>%
   mutate(
-    x_diff = x_std - football_x,
     y_diff = y_std - football_y
   ) %>%
-  select(comb_id, frameId, nflId, x_diff, y_diff)
+  select(comb_id, frameId, nflId, s, y_diff)
 
 # Calculate frame-by-frame relative position for players in shift
 shift_relative_position <- just_shift_tracking %>%
   left_join(football_tracking, by = c("comb_id", "frameId")) %>%
   mutate(
-    x_diff = x_std - football_x,
     y_diff = y_std - football_y
   ) %>%
-  select(comb_id, frameId, nflId, x_diff, y_diff)
+  select(comb_id, frameId, nflId, s, y_diff)
 
 # Determine direction of travel for man in motion based on y_diff change over frames
 mim_direction <- mim_relative_position %>%
@@ -165,5 +163,28 @@ shift_direction <- shift_relative_position %>%
   mutate(motion_dir = ifelse(y_shift > 0, "Right", ifelse(y_shift < 0, "Left", NA))) %>%
   filter(!is.na(motion_dir)) %>%
   ungroup()
-#next step
 #pull components together
+
+
+# List all meninbox and personnelID files in the directory
+meninbox_files <- list.files( pattern = "meninbox", full.names = TRUE)
+personnelD_files <- list.files( pattern = "personnelD", full.names = TRUE)
+
+# Function to read and concatenate files
+read_and_combine <- function(files) {
+  do.call(rbind, lapply(files, read.csv))
+}
+
+# Read and combine the meninbox and personnelID files
+meninbox_data <- read_and_combine(meninbox_files)
+personnelD_data <- read_and_combine(personnelD_files)
+
+meninbox_data <- meninbox_data %>% select(c(gameId,playId,frameId,y_pred)) %>% rename(defendersInBox = y_pred)
+personnelD_data <- personnelD_data %>% select(c(gameId,playId,frameId,y_pred))%>% rename(personnelD = y_pred)
+meninbox_data$comb_id <- as.factor(paste0(as.character(meninbox_data$gameId)," ", as.character(meninbox_data$playId)))
+personnelD_data$comb_id <- as.factor(paste0(as.character(personnelD_data$gameId)," ", as.character(personnelD_data$playId)))
+meninbox_data <- meninbox_data %>% select(-c(gameId,playId))
+personnelD_data<- personnelD_data %>% select(-c(gameId,playId))
+dataframe<- dataframe %>% merge(meninbox_data, by = c("comb_id","frameId")) 
+dataframe<- dataframe %>% merge(personnelD_data, by = c("comb_id","frameId"))
+rm(list=c(meninbox_data,personnelD_data))
