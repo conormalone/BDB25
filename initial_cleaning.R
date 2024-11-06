@@ -2,6 +2,7 @@ library(tidyverse)
 set.seed(1234)
 plays <- read.csv("plays.csv")
 player_play <- read.csv("player_play.csv")
+games <- read.csv("games.csv")
 week1 <- read.csv("tracking_week_1.csv")
 #week2 <- read.csv("tracking_week_2.csv")
 #week3 <- read.csv("tracking_week_3.csv")
@@ -29,13 +30,14 @@ tracking_clean <-pre_processing_function(tracking_dirty)
 tracking_football <-tracking_clean %>% filter(displayName=="football")
 rm(tracking_dirty)
 #merge tracking and pff to attach roles to tracking
-play_clean <- plays %>% select(c(gameId,playId,possessionTeam, offenseFormation,receiverAlignment,passResult,playAction,pff_runPassOption,pff_passCoverage,pff_manZone))
+play_clean <- plays %>% select(c(gameId,playId,possessionTeam, down,yardsToGo, preSnapHomeScore,preSnapVisitorScore,offenseFormation,receiverAlignment,passResult,playAction,pff_runPassOption,pff_passCoverage,pff_manZone))
 play_track <- merge(tracking_clean, play_clean, how = "left",on = c(gameId, playId))
 player_play_clean <- player_play %>% select(c(gameId,playId,nflId, hadPassReception,wasTargettedReceiver,
                                               inMotionAtBallSnap,shiftSinceLineset,motionSinceLineset,wasRunningRoute,
                                               routeRan,pff_defensiveCoverageAssignment,pff_primaryDefensiveCoverageMatchupNflId,pff_secondaryDefensiveCoverageMatchupNflId))
 dataframe <- merge(play_track, player_play_clean, how = "left",on = c(gameId, playId, nflId))
-
+games$gameId <- as.factor(games$gameId)
+dataframe <- dataframe %>% merge(.,games, how = "left",on = c(gameId))
 #I always make comb_id, giving each play a unique ID
 dataframe$comb_id <- as.factor(paste0(as.character(dataframe$gameId)," ", as.character(dataframe$playId)))
 tracking_football$comb_id <- as.factor(paste0(as.character(tracking_football$gameId)," ", as.character(tracking_football$playId)))
@@ -187,4 +189,24 @@ meninbox_data <- meninbox_data %>% select(-c(gameId,playId))
 personnelD_data<- personnelD_data %>% select(-c(gameId,playId))
 dataframe<- dataframe %>% merge(meninbox_data, by = c("comb_id","frameId")) 
 dataframe<- dataframe %>% merge(personnelD_data, by = c("comb_id","frameId"))
-rm(list=c(meninbox_data,personnelD_data))
+rm(list=c("meninbox_data","personnelD_data"))
+#################
+#add some play state stuff
+dataframe <- dataframe %>%
+  mutate(
+    scorediff = ifelse(club == homeTeamAbbr, preSnapHomeScore - preSnapVisitorScore, preSnapVisitorScore - preSnapHomeScore),
+    score_bucket = case_when(
+      scorediff < -14 ~ "Down more than 14",
+      scorediff >= -14 & scorediff < -7 ~ "Down 7 to 14",
+      scorediff >= -7 & scorediff < -3 ~ "Down 3 to 7",
+      scorediff >= -3 & scorediff < 0 ~ "Down 1 to 3",
+      scorediff == 0 ~ "Tie",
+      scorediff > 0 & scorediff <= 3 ~ "Up 1 to 3",
+      scorediff > 3 & scorediff <= 7 ~ "Up 3 to 7",
+      scorediff > 7 & scorediff <= 14 ~ "Up 7 to 14",
+      scorediff > 14 ~ "Up more than 14"
+    )
+  )
+
+ggplot(dataframe, aes(x=scorediff)) + 
+  geom_density()
