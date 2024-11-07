@@ -55,32 +55,18 @@ rm(list=c("play_track","play_clean","player_play_clean","tracking_clean"))
 ###########################################
 #feature 1
 #direction of shift & man in motion
-movers_and_shakers <- dataframe %>% filter((inMotionAtBallSnap==1|shiftSinceLineset==1|motionSinceLineset==1))
-plays_with_motion <- dataframe %>% filter(inMotionAtBallSnap==1)%>% select(c(comb_id,nflId)) %>% unique()
-plays_with_shift <- dataframe %>% filter(shiftSinceLineset==1) %>% select(c(comb_id,nflId)) %>% unique()
-just_mim_tracking <- dataframe %>%  filter(comb_id %in% plays_with_motion$comb_id & nflId %in% plays_with_motion$nflId)
-just_shift_tracking <- dataframe %>%  filter(comb_id %in% plays_with_shift$comb_id & nflId %in% plays_with_shift$nflId )
-#get direction of travel of man in motion
-start_mim <- just_mim_tracking %>% filter(event=="man_in_motion")%>% select(c(comb_id, frameId,nflId,y_std)) %>% rename( start_y =y_std)
-end_mim <- just_mim_tracking %>% filter(event=="ball_snap")%>% select(c(comb_id, frameId,nflId,y_std)) %>% rename( end_y =y_std)
-#merge start and end mim, get diff, if larger they move right, if smaller left
-mim_dir <- start_mim %>% merge(., end_mim, by=c("comb_id","nflId")) %>% mutate(y_diff = start_y - end_y) %>% 
-  select(-c(frameId.x,frameId.y,start_y,end_y)) %>% filter(abs(y_diff) >0.25) %>% 
-  mutate(motion_dir = ifelse(y_diff>0,"Right","Left")) %>% select(-y_diff)
-#get direction of travel of shift
-start_shift <- just_shift_tracking %>% filter(event=="shift")%>% select(c(comb_id, frameId,nflId,y_std)) %>% rename( start_y =y_std)
-end_shift <- just_shift_tracking %>% filter(event=="ball_snap")%>% select(c(comb_id, frameId,nflId,y_std)) %>% rename( end_y =y_std)
-#merge start and end shift, get diff, if larger they move right, if smaller left
-shift_dir <- start_shift %>% merge(., end_shift, by=c("comb_id","nflId")) %>% mutate(y_diff = start_y - end_y) %>% 
-  select(-c(frameId.x,frameId.y,start_y,end_y)) %>% filter(abs(y_diff) >0.1) %>% 
-  mutate(motion_dir = ifelse(y_diff>0,"Right","Left")) %>% select(-y_diff)   
+#movers_and_shakers <- dataframe %>% filter((inMotionAtBallSnap==1|shiftSinceLineset==1|motionSinceLineset==1))
+#plays_with_motion <- dataframe %>% filter(inMotionAtBallSnap==1)%>% select(c(comb_id,nflId)) %>% unique()
+#plays_with_shift <- dataframe %>% filter(shiftSinceLineset==1) %>% select(c(comb_id,nflId)) %>% unique()
+#just_mim_tracking <- dataframe %>%  filter(comb_id %in% plays_with_motion$comb_id & nflId %in% plays_with_motion$nflId)
+#just_shift_tracking <- dataframe %>%  filter(comb_id %in% plays_with_shift$comb_id & nflId %in% plays_with_shift$nflId )
+  
 ######################################
 #feature2
 #target metrics to rank players by most popular (HMM starts with most pop)
 #import games to get week counts
 player_play_games <- player_play %>% merge(.,games, by="gameId") %>% filter(wasRunningRoute==1 | wasTargettedReceiver==1)
 player_play_games$teamAbbr <-as.factor(player_play_games$teamAbbr)
-
 track_routes_and_targets <- function(data) {
   
   # Arrange data by week, gameId, and playId to ensure chronological order
@@ -90,24 +76,27 @@ track_routes_and_targets <- function(data) {
   data <- data %>%
     group_by(teamAbbr, nflId) %>%
     mutate(
-      routes_run_to_date = cumsum(ifelse(wasRunningRoute== 1, 1, 0)) - ifelse(wasRunningRoute== 1, 1, 0),
+      routes_run_to_date = cumsum(ifelse(wasRunningRoute == 1, 1, 0)) - ifelse(wasRunningRoute == 1, 1, 0),
       targets_to_date = cumsum(ifelse(wasTargettedReceiver == 1, 1, 0)) - ifelse(wasTargettedReceiver == 1, 1, 0)
     ) %>%
-    ungroup()%>%
+    ungroup() %>%
     
-    # Group by each play and rank players by targets_to_date
+    # Group by each play and rank players by targets_to_date and nflId as secondary criterion
     group_by(week, playId, teamAbbr) %>%
-    mutate(rank= dense_rank(desc(targets_to_date))) %>%
+    arrange(desc(targets_to_date), nflId) %>%
+    mutate(rank = row_number()) %>%
     ungroup()
   
   return(data)
 }
 
-
+# Apply the function to your dataset
 route_counter <- track_routes_and_targets(player_play_games)
-route_counter <- route_counter%>% select(c(gameId,playId,nflId,teamAbbr,routes_run_to_date,targets_to_date,rank))
 
-
+# Select the desired columns
+route_counter <- route_counter %>% 
+  select(gameId, playId, nflId, teamAbbr, routes_run_to_date, targets_to_date, rank)
+###########################################
 #highlight checkdown plays
 players <- read.csv("players.csv") %>% select(c(nflId,position))
 rb_te_player_plays <- player_play %>% merge(.,players) %>% 
@@ -138,7 +127,7 @@ mim_relative_position <- just_mim_tracking %>%
   mutate(
     y_diff = y_std - football_y
   ) %>%
-  select(comb_id, frameId, nflId, s, y_diff)
+  select(comb_id, gameId, playId,frameId, nflId, s, y_diff)
 
 # Calculate frame-by-frame relative position for players in shift
 shift_relative_position <- just_shift_tracking %>%
@@ -146,7 +135,7 @@ shift_relative_position <- just_shift_tracking %>%
   mutate(
     y_diff = y_std - football_y
   ) %>%
-  select(comb_id, frameId, nflId, s, y_diff)
+  select(comb_id, gameId, playId, frameId, nflId, s, y_diff)
 
 # Determine direction of travel for man in motion based on y_diff change over frames
 mim_direction <- mim_relative_position %>%
@@ -208,5 +197,5 @@ dataframe <- dataframe %>%
     )
   )
 
-ggplot(dataframe, aes(x=scorediff)) + 
+ggplot(mim_direction, aes(x=y_diff)) + 
   geom_density()
