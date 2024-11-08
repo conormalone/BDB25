@@ -155,7 +155,10 @@ shift_direction <- shift_relative_position %>%
   filter(!is.na(motion_dir)) %>%
   ungroup()
 #pull components together
-
+shift_direction$gameId <- as.factor(shift_direction$gameId)
+shift_direction$playId <- as.factor(shift_direction$playId)
+mim_direction$gameId <- as.factor(mim_direction$gameId)
+mim_direction$playId <- as.factor(mim_direction$playId)
 
 # List all meninbox and personnelID files in the directory
 meninbox_files <- list.files( pattern = "meninbox", full.names = TRUE)
