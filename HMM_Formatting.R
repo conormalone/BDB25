@@ -31,15 +31,15 @@ route_rank_wide <-route_counter %>%
 route_rank_wide$gameId <- as.factor(route_rank_wide$gameId)
 route_rank_wide$playId <- as.factor(route_rank_wide$playId)
 # Perform a left join to bring in y_diff values from the tracking_data based on matching gameId/playId and nflId
-route_rank_wide %>% select(c(gameId, playId, rank_1)) %>% 
-  left_join(shift_direction %>% select(gameId, playId, frameId, nflId, y_diff,s), by = c("gameId"="gameId","playId"="playId", "rank_1"="nflId")) %>% 
-  filter(!is.na(y_diff))%>% rename(diff_1=y_diff,s_1=s)
+#route_rank_wide %>% select(c(gameId, playId, rank_1)) %>% 
+#  left_join(shift_direction %>% select(gameId, playId, frameId, nflId, y_diff,s), by = c("gameId"="gameId","playId"="playId", "rank_1"="nflId")) %>% 
+#  filter(!is.na(y_diff))%>% rename(diff_1=y_diff,s_1=s)
 
 
 route_rank_wide %>% select(c(gameId, playId, rank_1)) %>% 
-  left_join(mim_direction %>% select(gameId, playId, frameId, nflId, y_diff,s), by = c("gameId"="gameId","playId"="playId", "rank_1"="nflId")) %>% 
+  left_join(direction %>% select(gameId, playId, frameId, nflId, y_diff,s), by = c("gameId"="gameId","playId"="playId", "rank_1"="nflId")) %>% 
   filter(!is.na(y_diff)) %>% rename(diff_1=y_diff,s_1=s)
-move_direction <- rbind(mim_direction, shift_direction)
+move_direction <- direction#rbind(mim_direction, shift_direction)
 ######
 #get stats for wr1 to wr5
 library(purrr)
@@ -65,11 +65,11 @@ combined_movement_wide[is.na(combined_movement_wide )] <- 0
 combined_movement_wide <- combined_movement_wide %>% select(-c(rank_1,rank_2,rank_3,rank_4,rank_5))
 #combing movement and other features
 all_features <- features %>% merge(.,combined_movement_wide, by=c('gameId', 'playId','frameId'), all.x=TRUE)
-
+all_features[is.na(all_features)] <- 0
 #get targets and combine with route_rank_wide
 just_targets <- player_play %>% filter(wasTargettedReceiver==1) %>% 
   select(c(gameId,playId,nflId))
-just_targets %>% merge(.,route_counter, by= c('gameId', 'playId',"nflId"),all.x=TRUE) %>% 
+targetted_rank <- just_targets %>% merge(.,route_counter, by= c('gameId', 'playId',"nflId"),all.x=TRUE) %>% 
   select(c('gameId', 'playId',"nflId","rank"))
 
          

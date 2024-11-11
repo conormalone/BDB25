@@ -105,16 +105,16 @@ rb_te_player_plays
 #############
 #continous shifter location
 # Filter data for players in motion or shift
-movers_and_shakers <- dataframe %>%
-  filter(inMotionAtBallSnap == 1 | shiftSinceLineset == 1 | motionSinceLineset == 1)
+#movers_and_shakers <- dataframe %>%
+#  filter(inMotionAtBallSnap == 1 | shiftSinceLineset == 1 | motionSinceLineset == 1)
 
 # Get unique plays with motion and shift events
-plays_with_motion <- dataframe %>% filter(inMotionAtBallSnap == 1) %>% select(c(comb_id, nflId)) %>% unique()
-plays_with_shift <- dataframe %>% filter(shiftSinceLineset == 1) %>% select(c(comb_id, nflId)) %>% unique()
+#plays_with_motion <- dataframe %>% filter(inMotionAtBallSnap == 1) %>% select(c(comb_id, nflId)) %>% unique()
+#plays_with_shift <- dataframe %>% filter(shiftSinceLineset == 1) %>% select(c(comb_id, nflId)) %>% unique()
 
 # Filter tracking data for only players involved in motion or shift
-just_mim_tracking <- dataframe %>% filter(comb_id %in% plays_with_motion$comb_id & nflId %in% plays_with_motion$nflId)
-just_shift_tracking <- dataframe %>% filter(comb_id %in% plays_with_shift$comb_id & nflId %in% plays_with_shift$nflId)
+#just_mim_tracking <- dataframe %>% filter(comb_id %in% plays_with_motion$comb_id & nflId %in% plays_with_motion$nflId)
+#just_shift_tracking <- dataframe %>% filter(comb_id %in% plays_with_shift$comb_id & nflId %in% plays_with_shift$nflId)
 
 # Extract football location for each frame to use as reference
 football_tracking <- tracking_football %>% 
@@ -122,43 +122,58 @@ football_tracking <- tracking_football %>%
   rename(football_x = x_std, football_y = y_std)
 
 # Calculate frame-by-frame relative position for man in motion
-mim_relative_position <- just_mim_tracking %>%
+#mim_relative_position <- just_mim_tracking %>%
+#  left_join(football_tracking, by = c("comb_id", "frameId")) %>%
+#  mutate(
+#    y_diff = y_std - football_y
+#  ) %>%
+#  select(comb_id, gameId, playId,frameId, nflId, s, y_diff)
+# Calculate frame-by-frame relative position for man in motion
+relative_position <- dataframe %>%
   left_join(football_tracking, by = c("comb_id", "frameId")) %>%
   mutate(
     y_diff = y_std - football_y
   ) %>%
   select(comb_id, gameId, playId,frameId, nflId, s, y_diff)
-
 # Calculate frame-by-frame relative position for players in shift
-shift_relative_position <- just_shift_tracking %>%
-  left_join(football_tracking, by = c("comb_id", "frameId")) %>%
-  mutate(
-    y_diff = y_std - football_y
-  ) %>%
-  select(comb_id, gameId, playId, frameId, nflId, s, y_diff)
+#shift_relative_position <- just_shift_tracking %>%
+#  left_join(football_tracking, by = c("comb_id", "frameId")) %>%
+#  mutate(
+ #   y_diff = y_std - football_y
+ # ) %>%
+  #select(comb_id, gameId, playId, frameId, nflId, s, y_diff)
 
 # Determine direction of travel for man in motion based on y_diff change over frames
-mim_direction <- mim_relative_position %>%
+direction <- relative_position %>%
   group_by(comb_id, nflId) %>%
   arrange(frameId) %>%
   mutate(y_shift = y_diff - lag(y_diff)) %>%
   mutate(motion_dir = ifelse(y_shift > 0, "Right", ifelse(y_shift < 0, "Left", NA))) %>%
   filter(!is.na(motion_dir)) %>%
   ungroup()
+#mim_direction <- mim_relative_position %>%
+#  group_by(comb_id, nflId) %>%
+#  arrange(frameId) %>%
+#  mutate(y_shift = y_diff - lag(y_diff)) %>%
+#  mutate(motion_dir = ifelse(y_shift > 0, "Right", ifelse(y_shift < 0, "Left", NA))) %>%
+#  filter(!is.na(motion_dir)) %>%
+#  ungroup()
 
 # Determine direction of travel for players in shift based on y_diff change over frames
-shift_direction <- shift_relative_position %>%
-  group_by(comb_id, nflId) %>%
-  arrange(frameId) %>%
-  mutate(y_shift = y_diff - lag(y_diff)) %>%
-  mutate(motion_dir = ifelse(y_shift > 0, "Right", ifelse(y_shift < 0, "Left", NA))) %>%
-  filter(!is.na(motion_dir)) %>%
-  ungroup()
+#shift_direction <- shift_relative_position %>%
+#  group_by(comb_id, nflId) %>%
+#  arrange(frameId) %>%
+#  mutate(y_shift = y_diff - lag(y_diff)) %>%
+#  mutate(motion_dir = ifelse(y_shift > 0, "Right", ifelse(y_shift < 0, "Left", NA))) %>%
+#  filter(!is.na(motion_dir)) %>%
+#  ungroup()
 #pull components together
-shift_direction$gameId <- as.factor(shift_direction$gameId)
-shift_direction$playId <- as.factor(shift_direction$playId)
-mim_direction$gameId <- as.factor(mim_direction$gameId)
-mim_direction$playId <- as.factor(mim_direction$playId)
+#shift_direction$gameId <- as.factor(shift_direction$gameId)
+#shift_direction$playId <- as.factor(shift_direction$playId)
+#mim_direction$gameId <- as.factor(mim_direction$gameId)
+#mim_direction$playId <- as.factor(mim_direction$playId)
+direction$gameId <- as.factor(direction$gameId)
+direction$playId <- as.factor(direction$playId)
 
 # List all meninbox and personnelID files in the directory
 meninbox_files <- list.files( pattern = "meninbox", full.names = TRUE)
@@ -200,5 +215,5 @@ dataframe <- dataframe %>%
     )
   )
 
-ggplot(mim_direction, aes(x=y_diff)) + 
+ggplot(direction, aes(x=y_diff)) + 
   geom_density()
