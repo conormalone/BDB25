@@ -8,16 +8,24 @@ symbols <- c("1","2","3","4","5")
 
 # Define the transition matrix
 
-transitionMatrix <- matrix(c(0.7, 0.2, 0.1,
-                             0.1, 0.6, 0.3,
-                             0.2, 0.3, 0.5),
-                           nrow = 3, byrow = TRUE)
+transitionMatrix <- matrix(c(0.2953958,0.2240041386,0.1989136058,0.1639937920,0.1176927056,
+                             0.2953958,0.2240041386,0.1989136058,0.1639937920,0.1176927056,
+                             0.2953958,0.2240041386,0.1989136058,0.1639937920,0.1176927056,
+                             0.2953958,0.2240041386,0.1989136058,0.1639937920,0.1176927056,
+                             0.2953958,0.2240041386,0.1989136058,0.1639937920,0.1176927056),
+                           nrow = 5, byrow = TRUE)
+#define categorical and continuous features
 
-# Define the emission matrix
-emissionMatrix <- matrix(c(0.5, 0.4, 0.1,
-                           0.1, 0.3, 0.6,
-                           0.4, 0.3, 0.3),
-                         nrow = 3, byrow = TRUE)
+cat_probs$S1 <- cat_probs$S1 / sum(cat_probs$S1)
+cat_probs$S2 <- cat_probs$S2 / sum(cat_probs$S2)
+cat_probs$S3 <- cat_probs$S3 / sum(cat_probs$S3)
+
+# Continuous emission parameters for each state (mean and standard deviation)
+cont_params <- list(
+  S1 = list(mean = 0, sd = 2),
+  S2 = list(mean = 1, sd = 3),
+  S3 = list(mean = -1, sd = 2.5)
+)
 
 # Create the HMM model
 hmm <- initHMM(states, symbols, transProbs = transitionMatrix, emissionProbs = emissionMatrix)

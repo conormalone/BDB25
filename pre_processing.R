@@ -230,6 +230,9 @@ combined_all_features <-rbind(combined_all_features,all_features)
 #################
 #add some play state stuff
 
-ggplot(direction, aes(x=y_diff)) + 
+ggplot(plays, aes(x=timeToThrow)) + 
   
   geom_density()
+
+#take plays before the actually 2.74 average time to throw, less time for events after the snap to interfere
+short_plays <- plays %>% filter(timeToThrow<2.5) %>% select(c("gameId","playId","comb_id")) %>% droplevels
