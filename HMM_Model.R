@@ -7,6 +7,7 @@ states <- c("WR1", "WR2", "WR3","WR4","WR5")
 symbols <- c("1","2","3","4","5")
 
 # Define the transition matrix
+
 transitionMatrix <- matrix(c(0.7, 0.2, 0.1,
                              0.1, 0.6, 0.3,
                              0.2, 0.3, 0.5),
