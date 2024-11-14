@@ -1,5 +1,13 @@
 library(HMM)
-prop.table(table(targetted_rank$rank,targetted_rank$rank))
+prop.table(table(targetted_rank$rank,targetted_rank$rank), margin = 1)
+prop.table(table(combined_all_features$score_bucket, combined_all_features$rank), margin = 1)
+prop.table(table(combined_all_features$down, combined_all_features$rank), margin = 1)
+prop.table(table(combined_all_features$yardsToGo, combined_all_features$rank), margin = 1)
+prop.table(table(combined_all_features$pff_manZone, combined_all_features$rank), margin = 1)
+prop.table(table(combined_all_features$defendersInBox, combined_all_features$rank), margin = 1)
+prop.table(table(combined_all_features$pff_runPassOption, combined_all_features$rank), margin = 1)
+prop.table(table(combined_all_features$personnelD, combined_all_features$rank), margin = 1)
+
 
 
 # Define the states and observation symbols
@@ -7,6 +15,7 @@ states <- c("WR1", "WR2", "WR3","WR4","WR5")
 symbols <- c("1","2","3","4","5")
 
 # Define the transition matrix
+
 
 transitionMatrix <- matrix(c(0.2953958,0.2240041386,0.1989136058,0.1639937920,0.1176927056,
                              0.2953958,0.2240041386,0.1989136058,0.1639937920,0.1176927056,
