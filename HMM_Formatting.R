@@ -14,3 +14,48 @@ targetted_rank <- just_targets %>% merge(.,route_counter, by= c('gameId', 'playI
 prop.table(table(targetted_rank$rank,targetted_rank$rank) )       
 
 combined_all_features <- combined_all_features %>% merge(.,targetted_rank,by=c("gameId","playId"))
+
+categorize_speed <- function(s) {
+  case_when(
+    s == 0 ~ "0",
+    s < 1 ~ "1",
+    s < 3 ~ "2-3",
+    s < 5 ~ "3-5",
+    s < 7 ~ "5-7",
+    s < 8 ~ "8",
+    s < 9 ~ "9",
+    s >= 9 ~ "Over 9"
+  )
+}
+categorize_lag <- function(s) {
+  case_when(
+    s <=-0.75 ~ "less than -0.75",
+    s < -0.5 ~ "-1 to -0.5",
+    s < 0 ~ "-0.5 TO 0",
+    s ==0  ~ "0",
+    s < 0.5 ~ "0 to 0.5",
+    s < 1 ~ "0.5 to 1",
+    s >= 0.75 ~ "Over 0.75"
+  )
+}
+
+combined_all_features <- combined_all_features %>%
+  mutate(across(starts_with("s_"), categorize_speed, .names = "speed_{.col}")) %>% 
+  mutate(      across(starts_with("lag_"), categorize_lag, .names = "bucket_{.col}"))
+
+
+bucket_counts <- combined_all_features %>%
+  pivot_longer(cols = bucket_lag_1, names_to = "source", values_to = "bucket") %>%
+  count(bucket)
+
+# Plot the histogram
+ggplot(bucket_counts, aes(x = bucket, y = n)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Histogram of Buckets",
+    x = "Bucket",
+    y = "Count"
+  ) +
+  theme_minimal()
+
+

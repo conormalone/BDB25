@@ -44,7 +44,7 @@ route_counter <- track_routes_and_targets(player_play_games)
 
 # Select the desired columns
 route_counter <- route_counter %>% 
-  select(gameId, playId, nflId, teamAbbr, routes_run_to_date, targets_to_date, rank)
+  select(gameId, playId, week,nflId, teamAbbr, routes_run_to_date, targets_to_date, rank)
 ########################################################################################
 #preprocess tracking data
 pre_processing_function <- function(df_input){
@@ -112,14 +112,14 @@ relative_position <- dataframe %>%
   mutate(
     y_diff = y_std - football_y
   ) %>%
-  select(comb_id, gameId, playId,frameId, nflId, s, y_diff)
+  select(comb_id, gameId, playId,frameId, nflId, s, y_diff,a,dis)
 
 
 # Determine direction of travel for man in motion based on y_diff change over frames
 direction <- relative_position %>%
   group_by(comb_id, nflId) %>%
   arrange(frameId) %>%
-  mutate(y_shift = y_diff - lag(y_diff)) %>%
+  mutate(y_shift = y_diff - lag(y_diff),s_shift = s - lag(s)) %>%
   mutate(motion_dir = ifelse(y_shift > 0, "Right", ifelse(y_shift < 0, "Left", NA))) %>%
   filter(!is.na(motion_dir)) %>%
   ungroup()
@@ -138,14 +138,15 @@ if (week_num %% 2 == 0) {
     meninbox_files <- list.files(pattern = paste0("week", week_num, "_", next_week_num, "_meninbox.*\\.csv"), full.names = TRUE)
     personnelD_files<- list.files(pattern = paste0("week", week_num, "_", next_week_num, "_personnelD.*\\.csv"), full.names = TRUE)
 }
-#meninbox_files <- list.files(pattern = paste0("week", week_num, ".*meninbox.*\\.csv"), full.names = TRUE)
-#personnelD_files <- list.files(pattern = paste0("week", week_num, ".*personnelD.*\\.csv"), full.names = TRUE)
+
 # Function to read and concatenate files
 read_and_combine <- function(files) {
   do.call(rbind, lapply(files, read.csv))
 }
 
-# Read and combine the meninbox and personnelID files
+# run for week 9 only
+#meninbox_files <- list.files(pattern = paste0("week", week_num, ".*meninbox.*\\.csv"), full.names = TRUE)
+#personnelD_files <- list.files(pattern = paste0("week", week_num, ".*personnelD.*\\.csv"), full.names = TRUE)
 meninbox_data <- read.csv("week9_meninbox_tracking.csv")#read_and_combine(meninbox_files)
 personnelD_data <- read.csv("week9_personnelD_tracking.csv")#read_and_combine(personnelD_files)
 
@@ -177,7 +178,7 @@ dataframe <- dataframe %>%
   )
 
 features <- dataframe %>%
-  select(gameId, playId, frameId, down, yardsToGo, scorediff, score_bucket, pff_manZone, pff_runPassOption, defendersInBox, personnelD) %>%
+  select(week,gameId, playId, frameId, down, yardsToGo, scorediff, score_bucket, pff_manZone, pff_runPassOption, defendersInBox, personnelD) %>%
   group_by(gameId, playId, frameId) %>%
   summarise(across(everything(), first), .groups = "drop")
 #get ranked nflIds to put movement features in order
@@ -195,27 +196,27 @@ route_rank_wide$playId <- as.factor(route_rank_wide$playId)
 
 
 route_rank_wide %>% select(c(gameId, playId, rank_1)) %>% 
-  left_join(direction %>% select(gameId, playId, frameId, nflId, y_diff,s), by = c("gameId"="gameId","playId"="playId", "rank_1"="nflId")) %>% 
+  left_join(direction %>% select(gameId, playId, frameId, nflId, y_diff,s,s_shift,a,dis), by = c("gameId"="gameId","playId"="playId", "rank_1"="nflId")) %>% 
   filter(!is.na(y_diff)) %>% rename(diff_1=y_diff,s_1=s)
 move_direction <- direction#rbind(mim_direction, shift_direction)
 ######
 #get stats for wr1 to wr5
 library(purrr)
 r_1 <-route_rank_wide %>% select(c(gameId, playId, rank_1)) %>% 
-  left_join(move_direction %>% select(gameId, playId, frameId, nflId, y_diff,y_shift,s), by = c("gameId"="gameId","playId"="playId", "rank_1"="nflId")) %>% 
-  filter(!is.na(y_diff)) %>% rename(diff_1=y_diff,lag_1 = y_shift,s_1=s)
+  left_join(move_direction %>% select(gameId, playId, frameId, nflId, y_diff,y_shift,s,s_shift,a,dis), by = c("gameId"="gameId","playId"="playId", "rank_1"="nflId")) %>% 
+  filter(!is.na(y_diff)) %>% rename(diff_1=y_diff,lag_1 = y_shift,s_1=s,s_lag_1 = s_shift,a_1 = a, dis_1 =dis)
 r_2 <-route_rank_wide %>% select(c(gameId, playId, rank_2)) %>% 
-  left_join(move_direction %>% select(gameId, playId, frameId, nflId, y_diff,y_shift,s), by = c("gameId"="gameId","playId"="playId", "rank_2"="nflId")) %>% 
-  filter(!is.na(y_diff)) %>% rename(diff_2=y_diff,lag_2 = y_shift,s_2=s)
+  left_join(move_direction %>% select(gameId, playId, frameId, nflId, y_diff,y_shift,s,s_shift,a,dis), by = c("gameId"="gameId","playId"="playId", "rank_2"="nflId")) %>% 
+  filter(!is.na(y_diff)) %>% rename(diff_2=y_diff,lag_2 = y_shift,s_2=s,s_lag_2 = s_shift,a_2 = a, dis_2 =dis)
 r_3 <-route_rank_wide %>% select(c(gameId, playId, rank_3)) %>% 
-  left_join(move_direction %>% select(gameId, playId, frameId, nflId, y_diff,y_shift,s), by = c("gameId"="gameId","playId"="playId", "rank_3"="nflId")) %>% 
-  filter(!is.na(y_diff)) %>% rename(diff_3=y_diff,lag_3 = y_shift,s_3=s)
+  left_join(move_direction %>% select(gameId, playId, frameId, nflId, y_diff,y_shift,s,s_shift,a,dis), by = c("gameId"="gameId","playId"="playId", "rank_3"="nflId")) %>% 
+  filter(!is.na(y_diff)) %>% rename(diff_3=y_diff,lag_3 = y_shift,s_3=s,s_lag_3 = s_shift,a_3 = a, dis_3 =dis)
 r_4 <-route_rank_wide %>% select(c(gameId, playId, rank_4)) %>% 
-  left_join(move_direction %>% select(gameId, playId, frameId, nflId, y_diff,y_shift,s), by = c("gameId"="gameId","playId"="playId", "rank_4"="nflId")) %>% 
-  filter(!is.na(y_diff)) %>% rename(diff_4=y_diff,lag_4 = y_shift,s_4=s)
+  left_join(move_direction %>% select(gameId, playId, frameId, nflId, y_diff,y_shift,s,s_shift,a,dis), by = c("gameId"="gameId","playId"="playId", "rank_4"="nflId")) %>% 
+  filter(!is.na(y_diff)) %>% rename(diff_4=y_diff,lag_4 = y_shift,s_4=s,s_lag_4 = s_shift,a_4 = a, dis_4 =dis)
 r_5 <-route_rank_wide %>% select(c(gameId, playId, rank_5)) %>% 
-  left_join(move_direction %>% select(gameId, playId, frameId, nflId, y_diff,y_shift,s), by = c("gameId"="gameId","playId"="playId", "rank_5"="nflId")) %>% 
-  filter(!is.na(y_diff)) %>% rename(diff_5=y_diff,lag_5 = y_shift,s_5=s)
+  left_join(move_direction %>% select(gameId, playId, frameId, nflId, y_diff,y_shift,s,s_shift,a,dis), by = c("gameId"="gameId","playId"="playId", "rank_5"="nflId")) %>% 
+  filter(!is.na(y_diff)) %>% rename(diff_5=y_diff,lag_5 = y_shift,s_5=s,s_lag_5 = s_shift,a_5 = a, dis_5 =dis)
 
 l <- list(r_1,r_2,r_3,r_4,r_5)
 combined_movement_wide <- reduce(.x = l, merge, by = c('gameId', 'playId','frameId'), all = T)

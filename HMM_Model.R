@@ -9,25 +9,31 @@ prop.table(table(combined_all_features$pff_manZone, combined_all_features$rank),
 prop.table(table(combined_all_features$defendersInBox, combined_all_features$rank), margin = 1)
 prop.table(table(combined_all_features$pff_runPassOption, combined_all_features$rank), margin = 1)
 prop.table(table(combined_all_features$personnelD, combined_all_features$rank), margin = 1)
+prop.table(table(combined_all_features$bucket_lag_1, combined_all_features$rank), margin = 1)
+prop.table(table(combined_all_features$bucket_lag_5, combined_all_features$rank), margin = 1)
+prop.table(table(combined_all_features$speed_s_lag_4, combined_all_features$rank), margin = 1)
 
 #write.csv(combined_all_features,"features.csv")
 ggplot(combined_all_features, aes(x=diff_1)) + 
   geom_density()
 ggplot(combined_all_features, aes(x=lag_1)) + 
   geom_density()
-ggplot(combined_all_features, aes(x=(s_1))) + 
+ggplot(combined_all_features, aes(x=s_lag_1)) + 
   geom_density()
-ggplot(combined_all_features, aes(x=diff_2)) + 
+ggplot(combined_all_features, aes(x=a_1)) + 
   geom_density()
-ggplot(combined_all_features, aes(x=lag_2)) + 
+ggplot(combined_all_features, aes(x=dis_1)) + 
   geom_density()
-ggplot(combined_all_features, aes(x=s_2)) + 
+ggplot(combined_all_features, aes(x=s_1)) + 
   geom_density()
 
-
+blah <- log(combined_all_features$s_2)
+qqline(blah)
+shapiro.test(blah)
 #get weibull shape and scale to model speed
 s_1_dist <- combined_all_features$s_1
 s_1_dist[s_1_dist==0]<- 0.0001
+combined_all_features$s_1_dist <- s_1_dist
 s_2_dist <- combined_all_features$s_2
 s_2_dist[s_2_dist==0]<- 0.0001
 s_3_dist <- combined_all_features$s_3
@@ -37,7 +43,11 @@ s_4_dist[s_4_dist==0]<- 0.0001
 s_5_dist <- combined_all_features$s_5
 s_5_dist[s_5_dist==0]<- 0.0001
 library(MASS)
-
+combined_all_features$s_1_dist <- ifelse(is.na(s_1_dist),0,s_1_dist)
+combined_all_features$s_2_dist <- ifelse(is.na(s_1_dist),0,s_1_dist)
+combined_all_features$s_3_dist <- s_3_dist
+combined_all_features$s_4_dist <- s_4_dist
+combined_all_features$s_5_dist <- s_5_dist
 
 # Fit Weibull distribution using MASS
 s_1_fit <- fitdistr(s_1_dist, densfun = "weibull")$estimate
@@ -75,7 +85,7 @@ symbols <- c("1","2","3","4","5")
 # Define the transition matrix
 
 
-transitionMatrix <- matrix(c(0.2953958,0.2240041386,0.1989136058,0.1639937920,0.1176927056,
+initial_trans_matrix <- matrix(c(0.2953958,0.2240041386,0.1989136058,0.1639937920,0.1176927056,
                              0.2953958,0.2240041386,0.1989136058,0.1639937920,0.1176927056,
                              0.2953958,0.2240041386,0.1989136058,0.1639937920,0.1176927056,
                              0.2953958,0.2240041386,0.1989136058,0.1639937920,0.1176927056,
@@ -83,7 +93,16 @@ transitionMatrix <- matrix(c(0.2953958,0.2240041386,0.1989136058,0.1639937920,0.
                            nrow = 5, byrow = TRUE)
 #define categorical and continuous features
 # Example parameters for each hidden state
+ #
+# Set initial state probabilities
+initial_state_probs <- c(0.2953958,0.2240041386,0.1989136058,0.1639937920,0.1176927056)
 
+# Fit model with these initial parameters
+fitted_hmm <- fit_mixed_hmm(
+  combined_all_features,
+  initial_trans_matrix = initial_trans_matrix,
+  initial_state_probs = initial_state_probs
+)
 # Categorical emission probabilities for each state
 categorical_probs <- list(
   S1 = rep(1/20, 20),  # Uniform probabilities for 20 categories in state S1
