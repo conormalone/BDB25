@@ -14,7 +14,11 @@ targetted_rank <- just_targets %>% merge(.,route_counter, by= c('gameId', 'playI
 prop.table(table(targetted_rank$rank,targetted_rank$rank) )       
 
 combined_all_features <- combined_all_features %>% merge(.,targetted_rank,by=c("gameId","playId"))
-
+combined_all_features$comb_id <- as.factor(paste0(as.character(combined_all_features$gameId)," ", as.character(combined_all_features$playId)))
+combined_all_features <- combined_all_features %>% filter(comb_id %in% short_plays$comb_id)
+combined_all_features[factor_columns] <- lapply(combined_all_features[factor_columns], as.factor)
+train_features <- combined_all_features %>% filter(week>1 & week<9)
+test_features <- combined_all_features %>% filter(week==9)
 categorize_speed <- function(s) {
   case_when(
     s == 0 ~ "0",
