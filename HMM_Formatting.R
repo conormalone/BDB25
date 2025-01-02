@@ -2,33 +2,34 @@
 #continued from initial_cleaning.R
 ########################
 library(tidyverse)
-
+short_plays<- plays %>% filter(timeToThrow<3)
 #get targets and combine with route_rank_wide
 player_play$comb_id <- as.factor(paste0(as.character(player_play$gameId)," ", as.character(player_play$playId)))
 just_targets <- player_play %>% filter(wasTargettedReceiver==1) %>% 
   filter(comb_id %in% short_plays$comb_id) %>% select(c(gameId,playId,nflId))
-
-targetted_rank <- just_targets %>% merge(.,route_counter, by= c('gameId', 'playId',"nflId"),all.x=TRUE) %>% 
+targetted_rank <- just_targets %>% merge(.,route_counter %>% filter(week>1 & week<8), by= c('gameId', 'playId',"nflId"),all.x=TRUE) %>% 
   select(c('gameId', 'playId',"nflId","rank"))
+
+targetted_rank[c("gameId","playId")] <- lapply(targetted_rank[c("gameId","playId")], as.factor)
 
 prop.table(table(targetted_rank$rank,targetted_rank$rank) )       
 
-combined_all_features <- combined_all_features %>% merge(.,targetted_rank,by=c("gameId","playId"))
+
+combined_all_features <- all_features %>% merge(.,targetted_rank,by=c("gameId","playId"))
+#combined_all_features <- combined_all_features %>% left_join(.,shift_rank,by=c("gameId","playId"),relationship = "many-to-many")
+#combined_all_features <- combined_all_features %>% left_join(.,motion_rank,by=c("gameId","playId"),relationship = "many-to-many")
 combined_all_features$comb_id <- as.factor(paste0(as.character(combined_all_features$gameId)," ", as.character(combined_all_features$playId)))
-combined_all_features <- combined_all_features %>% filter(comb_id %in% short_plays$comb_id)
+plays$comb_id <- as.factor(paste0(as.character(plays$gameId)," ", as.character(plays$playId)))
+combined_all_features <- combined_all_features %>% merge(.,plays,by=c("comb_id"))
+combined_all_features$offenseFormation<- as.factor(combined_all_features$offenseFormation)
+#combined_all_features <- combined_all_features %>% filter(comb_id %in% short_plays$comb_id)
 combined_all_features[factor_columns] <- lapply(combined_all_features[factor_columns], as.factor)
-train_features <- combined_all_features %>% filter(week>1 & week<9)
-test_features <- combined_all_features %>% filter(week==9)
+train_features <- combined_all_features %>% filter(week>1 & week<8)
+test_features <- combined_all_features %>% filter(week>7)
 categorize_speed <- function(s) {
   case_when(
-    s == 0 ~ "0",
-    s < 1 ~ "1",
-    s < 3 ~ "2-3",
-    s < 5 ~ "3-5",
-    s < 7 ~ "5-7",
-    s < 8 ~ "8",
-    s < 9 ~ "9",
-    s >= 9 ~ "Over 9"
+    s <= 0.5 ~ "0",
+    s > 0 ~ "1"
   )
 }
 categorize_lag <- function(s) {
