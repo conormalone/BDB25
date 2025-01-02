@@ -26,8 +26,8 @@ from pathlib import Path
 
 import polars as pl
 
-INPUT_DATA_DIR = Path("bdb2023/")
-OUT_DIR = Path("bdb2023/")
+INPUT_DATA_DIR = Path(r'D:\NFL\BDB25\BDB25')
+OUT_DIR = Path(r'D:\NFL\BDB25\BDB25')
 
 
 def get_players_df() -> pl.DataFrame:
@@ -76,8 +76,8 @@ def get_tracking_df() -> pl.DataFrame:
     """
     # don't include football rows for this project.  
     # NOTE: Only processing week 1 for the sake of time.  Change "1" to "*" to process all weeks
-    return pl.read_csv(INPUT_DATA_DIR / "week*.csv", null_values=["NA", "nan", "N/A", "NaN", ""]).filter(
-         (pl.col("team")!= "football")#pl.col("team") != "football"
+    return pl.read_csv(INPUT_DATA_DIR / "tracking_week_*.csv", null_values=["NA", "nan", "N/A", "NaN", ""]).filter(
+        (pl.col("club")!= "football")#pl.col("team") != "football"
     )
 
 
@@ -116,18 +116,15 @@ def add_features_to_tracking_df(
         #    on="nflId",
         #    how="inner",
         #)
-        
         .with_columns(
-            side=pl.when(pl.col("team") == pl.col("possessionTeam"))
+            side=pl.when(pl.col("club") == pl.col("possessionTeam"))
             .then(pl.lit(1))
             .otherwise(pl.lit(-1))
             .alias("side"),
-        ).drop(["possessionTeam"])
+        )#.drop(["possessionTeam"])
     )
-    initial_count = tracking_df.shape[0]
-    #tracking_df = tracking_df.filter(pl.col("team") != pl.col("possessionTeam")).drop(["possessionTeam"])
-    final_count = tracking_df.shape[0]
-    print(f"Rows before: {initial_count}, Rows after: {final_count}")
+    tracking_df = tracking_df.filter(
+        pl.col("club") !=pl.col("possessionTeam")).drop(["possessionTeam"])
     #assert len(tracking_df) == og_len, "Lost rows when joining tracking data with play/player data"
 
     return tracking_df
@@ -227,11 +224,10 @@ def get_defFormation(tracking_df: pl.DataFrame, plays_df: pl.DataFrame) -> pl.Da
     plays_df = plays_df.filter(pl.col("defendersInBox").is_not_null())
     
     tracking_df = tracking_df.join(
-        plays_df[["gameId", "playId", "defendersInBox"]],
+        plays_df[["gameId", "playId","defendersInBox"]],
         on=["gameId", "playId"],
         how="inner",
     )
-    
     defFormation_df = (tracking_df[["gameId", "playId", "mirrored", "frameId", "defendersInBox"]]
        .unique()  # Polars equivalent of drop_duplicates()
     )
@@ -241,66 +237,44 @@ def get_defFormation(tracking_df: pl.DataFrame, plays_df: pl.DataFrame) -> pl.Da
     return defFormation_df, tracking_df
     
 
-def split_train_test_val(tracking_df: pl.DataFrame, target_df: pl.DataFrame) -> dict[str, pl.DataFrame]:
+def split_train_test_val(
+    tracking_df: pl.DataFrame, target_df: pl.DataFrame, split: str = "train_test_val"
+) -> dict[str, pl.DataFrame]:
     """
-    Split data into train, validation, and test sets.
-    Split is 70-15-15 for train-test-val respectively. Notably, we split at the play levle and not frame level.
-    This ensures no target contamination between splits.
+    Split data into train, validation, and test sets or use the entire dataset without splitting.
+    Split is 70-15-15 for train-test-val respectively unless 'none' is passed as the split argument.
 
     Args:
-        tracking_df (pl.DataFrame): Tracking data
-        target_df (pl.DataFrame): Target data
+        tracking_df (pl.DataFrame): Tracking data.
+        target_df (pl.DataFrame): Target data.
+        split (str): Specifies split type. Options are "train_test_val" (default) or "none".
 
     Returns:
-        dict: Dictionary containing train, validation, and test dataframes.
+        dict: Dictionary containing train, validation, and test dataframes or the full dataset.
     """
+    # Sort the data for consistency
     tracking_df = tracking_df.sort(["gameId", "playId", "mirrored", "frameId"])
     target_df = target_df.sort(["gameId", "playId", "mirrored"])
 
+    
+
+    # Default split logic (70-15-15 split at the play level)
     print(
         f"Total set: {tracking_df.n_unique(['gameId', 'playId', 'mirrored'])} plays,",
-        f"{tracking_df.n_unique(['gameId', 'playId', 'mirrored', 'frameId'])} frames",
+        f"{tracking_df.n_unique(['gameId', 'playId', 'mirrored', 'frameId'])} frames"
     )
     
-    test_val_ids = tracking_df.select(["gameId", "playId"]).unique(maintain_order=True).sample(fraction=0.3, seed=42)
-    train_tracking_df = tracking_df.join(test_val_ids, on=["gameId", "playId"], how="anti")
-    train_tgt_df = target_df.join(test_val_ids, on=["gameId", "playId"], how="anti")
+    none_val_ids = tracking_df.select(["gameId", "playId","frameId"]).unique(maintain_order=True)
+    none_tracking_df = tracking_df#.join(test_val_ids, on=["gameId", "playId"], how="anti")
+    none_tgt_df = target_df#.join(test_val_ids, on=["gameId", "playId"], how="anti")
     print(
-        f"Train set: {train_tracking_df.n_unique(['gameId', 'playId', 'mirrored'])} plays,",
-        f"{train_tracking_df.n_unique(['gameId', 'playId', 'mirrored', 'frameId'])} frames",
+        f"None set: {none_tracking_df.n_unique(['gameId', 'playId', 'mirrored'])} plays,",
+        f"{none_tracking_df.n_unique(['gameId', 'playId', 'mirrored', 'frameId'])} frames",
     )
-
-    test_ids = test_val_ids.sample(fraction=0.5, seed=42)  # 70-15-15 split
-    test_tracking_df = tracking_df.join(test_ids, on=["gameId", "playId"], how="inner")
-    test_tgt_df = target_df.join(test_ids, on=["gameId", "playId"], how="inner")
-    print(
-        f"Test set: {test_tracking_df.n_unique(['gameId', 'playId', 'mirrored'])} plays,",
-        f"{test_tracking_df.n_unique(['gameId', 'playId', 'mirrored', 'frameId'])} frames",
-    )
-
-    val_ids = test_val_ids.join(test_ids, on=["gameId", "playId"], how="anti")
-    val_tracking_df = tracking_df.join(val_ids, on=["gameId", "playId"], how="inner")
-    val_tgt_df = target_df.join(val_ids, on=["gameId", "playId"], how="inner")
-    print(
-        f"Validation set: {val_tracking_df.n_unique(['gameId', 'playId', 'mirrored'])} plays,",
-        f"{val_tracking_df.n_unique(['gameId', 'playId', 'mirrored', 'frameId'])} frames",
-    )
-    #none_val_ids = tracking_df.select(["gameId", "playId"]).unique(maintain_order=True)
-    #none_tracking_df = tracking_df#.join(test_val_ids, on=["gameId", "playId"], how="anti")
-    #none_tgt_df = target_df#.join(test_val_ids, on=["gameId", "playId"], how="anti")
-    #print(
-    #    f"Train set: {train_tracking_df.n_unique(['gameId', 'playId', 'mirrored'])} plays,",
-    #    f"{train_tracking_df.n_unique(['gameId', 'playId', 'mirrored', 'frameId'])} frames",
-    #)
     return {
-        "train_features": train_tracking_df,
-        "train_targets": train_tgt_df,
-        "test_features": test_tracking_df,
-        "test_targets": test_tgt_df,
-        "val_features": val_tracking_df,
-        "val_targets": val_tgt_df,
-        #"none_features": none_tracking_df,
-        #"none_targets": none_tgt_df,
+        
+        "none_features": none_tracking_df,
+        "none_targets": none_tgt_df,
     }
 
 
@@ -332,15 +306,14 @@ def main():
     print("Standardize play direction")
     tracking_df = standardize_tracking_directions(tracking_df)
     print("Augment data by mirroring")
-    print(len(tracking_df))
     tracking_df = augment_mirror_tracking(tracking_df)
-    print(len(tracking_df))
+
     print("Generate target - defFormation")
     defFormation_df, rel_tracking_df = get_defFormation(tracking_df, plays_df)
-    
-    print("Split train/test/val/none")
+
+    print("Split none")
     split_dfs = split_train_test_val(rel_tracking_df, defFormation_df)
-    print(len(tracking_df))
+
     out_dir = Path(OUT_DIR)
     out_dir.mkdir(exist_ok=True, parents=True)
 
@@ -358,10 +331,8 @@ def main():
         # Write sorted, unique DataFrame to Parquet
         df_sorted.write_parquet(out_dir / f"{key}.parquet")
     #for key, df in split_dfs.items():
-        
     #    sort_keys = ["gameId", "playId", "mirrored", "frameId"]
-    
-    #    df.sort(sort_keys).write_parquet(out_dir / f"{key}.parquet")
+     #   df.sort(sort_keys).write_parquet(out_dir / f"{key}.parquet")
 
 
 if __name__ == "__main__":

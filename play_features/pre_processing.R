@@ -126,29 +126,36 @@ direction <- relative_position %>%
 
 direction$gameId <- as.factor(direction$gameId)
 direction$playId <- as.factor(direction$playId)
-
-if (week_num %% 2 == 0) {
+# Function to read and concatenate files
+read_and_combine <- function(files) {
+  do.call(rbind, lapply(files, read.csv))
+}
+if (week_num == 9) {
+  meninbox_data <- read.csv("week9_meninbox_tracking.csv")#read_and_combine(meninbox_files)
+  personnelD_data <- read.csv("week9_personnelD_tracking.csv")#read_and_combine(personnelD_files)
+}
+  else if (week_num %% 2 == 0) {
   # For even weeks, use the previous week's meninbox file name
   previous_week_num <- week_num - 1
   meninbox_files <- list.files(pattern = paste0("week", previous_week_num, "_", week_num, "_meninbox.*\\.csv"), full.names = TRUE)
   personnelD_files <- list.files(pattern = paste0("week", previous_week_num, "_", week_num, "_personnelD.*\\.csv"), full.names = TRUE)
+  meninbox_data <- read_and_combine(meninbox_files)
+  personnelD_data <- read_and_combine(personnelD_files)
   } else {
     next_week_num <- week_num + 1
   # For odd weeks, search for the meninbox file with the current week number
     meninbox_files <- list.files(pattern = paste0("week", week_num, "_", next_week_num, "_meninbox.*\\.csv"), full.names = TRUE)
     personnelD_files<- list.files(pattern = paste0("week", week_num, "_", next_week_num, "_personnelD.*\\.csv"), full.names = TRUE)
-}
+    meninbox_data <- read_and_combine(meninbox_files)
+    personnelD_data <- read_and_combine(personnelD_files)
+    }
 
-# Function to read and concatenate files
-read_and_combine <- function(files) {
-  do.call(rbind, lapply(files, read.csv))
-}
+
 
 # run for week 9 only
 #meninbox_files <- list.files(pattern = paste0("week", week_num, ".*meninbox.*\\.csv"), full.names = TRUE)
 #personnelD_files <- list.files(pattern = paste0("week", week_num, ".*personnelD.*\\.csv"), full.names = TRUE)
-meninbox_data <- read.csv("week9_meninbox_tracking.csv")#read_and_combine(meninbox_files)
-personnelD_data <- read.csv("week9_personnelD_tracking.csv")#read_and_combine(personnelD_files)
+
 
 meninbox_data <- meninbox_data %>% select(c(gameId,playId,frameId,y_pred)) %>% rename(defendersInBox = y_pred)
 personnelD_data <- personnelD_data %>% select(c(gameId,playId,frameId,y_pred))%>% rename(personnelD = y_pred)
@@ -230,10 +237,11 @@ combined_all_features <-rbind(combined_all_features,all_features)
 }
 #################
 #add some play state stuff
-
+route_counter$gameId <- as.factor(route_counter$gameId)
+route_counter$playId <- as.factor(route_counter$playId)
+router <- route_counter %>% select(c("gameId","playId","rank","nflId"))
+combined_all_features <- merge(combined_all_features,router,by=c("gameId","playId","nflId"))
+combined_all_features <-combined_all_features %>% select(-"rank.x") %>% rename("rank"="rank.y")
 ggplot(plays, aes(x=timeToThrow)) + 
   
   geom_density()
-
-#take plays before the actually 2.74 average time to throw, less time for events after the snap to interfere
-short_plays <- plays %>% filter(timeToThrow<2.5) %>% select(c("gameId","playId","comb_id")) %>% droplevels
